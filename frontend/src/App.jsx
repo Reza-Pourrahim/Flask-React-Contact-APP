@@ -1,35 +1,97 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import { useState, useEffect } from 'react'
 import './App.css'
+import ContactForm from './components/ContactForm'
+import EditContactForm from './components/EditContactForm'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [contacts, setContacts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [editingContact, setEditingContact] = useState(null);
+
+  // Fetch contacts from backend
+  const fetchContacts = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('http://localhost:5000/contacts');
+      if (!response.ok) throw new Error('Failed to fetch contacts');
+      const data = await response.json();
+      setContacts(data.contacts);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchContacts();
+  }, []);
+
+  // Start editing a contact
+  const handleEdit = (contact) => {
+    setEditingContact(contact);
+  };
+
+  // Cancel editing
+  const handleCancelEdit = () => {
+    setEditingContact(null);
+  };
+
+  // Save edited contact
+  const handleSaveEdit = async (updatedContact) => {
+    try {
+      const response = await fetch(`http://localhost:5000/update_contact/${updatedContact.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedContact),
+      });
+
+      if (!response.ok) throw new Error('Failed to update contact');
+
+      // Refresh contacts list and exit edit mode
+      await fetchContacts();
+      setEditingContact(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  if (loading) return <div className="loading">Loading contacts...</div>;
+  if (error) return <div className="error">Error: {error}</div>;
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div className="container">
+      <h1>Contact Management</h1>
+      
+      <ContactForm onAddContact={handleAddContact} />
+      
+      <div className="contacts-list">
+        {contacts.map((contact) => (
+          <div key={contact.id} className="contact-card">
+            {editingContact?.id === contact.id ? (
+              <EditContactForm 
+                contact={contact}
+                onSave={handleSaveEdit}
+                onCancel={handleCancelEdit}
+              />
+            ) : (
+              <>
+                <h3>{contact.firstName} {contact.lastName}</h3>
+                <p>{contact.email}</p>
+                <div className="contact-actions">
+                  <button onClick={() => handleEdit(contact)}>Edit</button>
+                  <button onClick={() => handleDeleteContact(contact.id)}>Delete</button>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    </div>
+  );
 }
 
 export default App
